@@ -4,8 +4,8 @@ import google.generativeai as genai
 from datetime import date
 
 # Configure Gemini AI
-genai.configure(api_key="GEMINI_API_KEY")
-model = genai.GenerativeModel("gemini-2.5-flash")
+genai.configure(api_key="YOUR_API_KEY_HERE")
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Database setup
 def init_db():
@@ -70,6 +70,7 @@ with st.form("add_form"):
             conn.commit()
             conn.close()
             st.success("Patient added successfully!")
+            st.rerun()
 
 # View All Patients
 st.subheader("All Patient Records")
@@ -88,51 +89,54 @@ if patients:
             st.write(f"Haemoglobin: {patient[5]}")
             st.write(f"Cholesterol: {patient[6]}")
             st.write(f"AI Remarks: {patient[7]}")
-            # Edit section
-if st.button(f"Edit {patient[1]}", key=f"edit_{patient[0]}"):
-    st.session_state[f"editing_{patient[0]}"] = True
 
-if st.session_state.get(f"editing_{patient[0]}", False):
-    with st.form(key=f"edit_form_{patient[0]}"):
-        new_name = st.text_input("Full Name", value=patient[1])
-        new_dob = st.date_input("Date of Birth", min_value=date(1900,1,1), max_value=date.today(), value=date.fromisoformat(patient[2]))
-        new_email = st.text_input("Email", value=patient[3])
-        new_glucose = st.number_input("Glucose", min_value=0.0, value=float(patient[4]))
-        new_haemoglobin = st.number_input("Haemoglobin", min_value=0.0, value=float(patient[5]))
-        new_cholesterol = st.number_input("Cholesterol", min_value=0.0, value=float(patient[6]))
-        save = st.form_submit_button("Save Changes")
+            col1, col2, col3 = st.columns(3)
 
-        if save:
-            new_remarks = get_ai_prediction(new_glucose, new_haemoglobin, new_cholesterol)
-            conn = sqlite3.connect("patients.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE patients SET full_name=?, dob=?, email=?, glucose=?, haemoglobin=?, cholesterol=?, remarks=?
-                WHERE id=?
-            """, (new_name, str(new_dob), new_email, new_glucose, new_haemoglobin, new_cholesterol, new_remarks, patient[0]))
-            conn.commit()
-            conn.close()
-            st.session_state[f"editing_{patient[0]}"] = False
-            st.success("Patient updated successfully!")
-            st.rerun()
+            with col1:
+                if st.button("Edit", key=f"edit_{patient[0]}"):
+                    st.session_state[f"editing_{patient[0]}"] = True
 
-            # Delete button
-            if st.button(f"Delete {patient[1]}", key=f"del_{patient[0]}"):
-                conn = sqlite3.connect("patients.db")
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM patients WHERE id=?", (patient[0],))
-                conn.commit()
-                conn.close()
-                st.rerun()
+            with col2:
+                if st.button("Delete", key=f"del_{patient[0]}"):
+                    conn = sqlite3.connect("patients.db")
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM patients WHERE id=?", (patient[0],))
+                    conn.commit()
+                    conn.close()
+                    st.rerun()
 
-            # Update remarks
-            if st.button(f"Refresh AI Prediction for {patient[1]}", key=f"ref_{patient[0]}"):
-                new_remarks = get_ai_prediction(patient[4], patient[5], patient[6])
-                conn = sqlite3.connect("patients.db")
-                cursor = conn.cursor()
-                cursor.execute("UPDATE patients SET remarks=? WHERE id=?", (new_remarks, patient[0]))
-                conn.commit()
-                conn.close()
-                st.rerun()
+            with col3:
+                if st.button("Refresh AI", key=f"ref_{patient[0]}"):
+                    new_remarks = get_ai_prediction(patient[4], patient[5], patient[6])
+                    conn = sqlite3.connect("patients.db")
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE patients SET remarks=? WHERE id=?", (new_remarks, patient[0]))
+                    conn.commit()
+                    conn.close()
+                    st.rerun()
+
+            if st.session_state.get(f"editing_{patient[0]}", False):
+                with st.form(key=f"edit_form_{patient[0]}"):
+                    new_name = st.text_input("Full Name", value=patient[1])
+                    new_dob = st.date_input("Date of Birth", min_value=date(1900,1,1), max_value=date.today(), value=date.fromisoformat(patient[2]))
+                    new_email = st.text_input("Email", value=patient[3])
+                    new_glucose = st.number_input("Glucose", min_value=0.0, value=float(patient[4]))
+                    new_haemoglobin = st.number_input("Haemoglobin", min_value=0.0, value=float(patient[5]))
+                    new_cholesterol = st.number_input("Cholesterol", min_value=0.0, value=float(patient[6]))
+                    save = st.form_submit_button("Save Changes")
+
+                    if save:
+                        new_remarks = get_ai_prediction(new_glucose, new_haemoglobin, new_cholesterol)
+                        conn = sqlite3.connect("patients.db")
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE patients SET full_name=?, dob=?, email=?, glucose=?, haemoglobin=?, cholesterol=?, remarks=?
+                            WHERE id=?
+                        """, (new_name, str(new_dob), new_email, new_glucose, new_haemoglobin, new_cholesterol, new_remarks, patient[0]))
+                        conn.commit()
+                        conn.close()
+                        st.session_state[f"editing_{patient[0]}"] = False
+                        st.success("Patient updated successfully!")
+                        st.rerun()
 else:
     st.info("No patient records found. Add a patient above!")
