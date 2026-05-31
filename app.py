@@ -4,8 +4,8 @@ import google.generativeai as genai
 from datetime import date
 
 # Configure Gemini AI
-genai.configure(api_key="YOUR_API_KEY_HERE")
-model = genai.GenerativeModel("gemini-1.5-flash")
+genai.configure(api_key="write the API Key")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 # Database setup
 def init_db():
