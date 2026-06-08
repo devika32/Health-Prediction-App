@@ -4,7 +4,7 @@ import google.generativeai as genai
 from datetime import date
 
 # Configure Gemini AI
-genai.configure(api_key="write the API Key")
+genai.configure(api_key="GEMINI_API_KEY")
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 # Database setup
@@ -57,20 +57,37 @@ with st.form("add_form"):
     submitted = st.form_submit_button("Add Patient")
 
     if submitted:
-        if not full_name or not email or "@" not in email:
-            st.error("Please enter valid name and email!")
+        # Validate name
+        if not full_name:
+            st.error("Please enter the patient's full name!")
+        # Validate email
+        elif "@" not in email or "." not in email.split("@")[-1]:
+            st.error("Invalid email address! Please enter a valid email.")
         else:
-            remarks = get_ai_prediction(glucose, haemoglobin, cholesterol)
+            # Check for duplicate entry
             conn = sqlite3.connect("patients.db")
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO patients (full_name, dob, email, glucose, haemoglobin, cholesterol, remarks)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (full_name, str(dob), email, glucose, haemoglobin, cholesterol, remarks))
-            conn.commit()
+            cursor.execute(
+                "SELECT * FROM patients WHERE full_name=? AND dob=? AND email=?",
+                (full_name, str(dob), email)
+            )
+            existing = cursor.fetchone()
             conn.close()
-            st.success("Patient added successfully!")
-            st.rerun()
+
+            if existing:
+                st.error("Duplicate entry! This patient record already exists!")
+            else:
+                remarks = get_ai_prediction(glucose, haemoglobin, cholesterol)
+                conn = sqlite3.connect("patients.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO patients (full_name, dob, email, glucose, haemoglobin, cholesterol, remarks)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (full_name, str(dob), email, glucose, haemoglobin, cholesterol, remarks))
+                conn.commit()
+                conn.close()
+                st.success("Patient added successfully!")
+                st.rerun()
 
 # View All Patients
 st.subheader("All Patient Records")
@@ -110,7 +127,10 @@ if patients:
                     new_remarks = get_ai_prediction(patient[4], patient[5], patient[6])
                     conn = sqlite3.connect("patients.db")
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE patients SET remarks=? WHERE id=?", (new_remarks, patient[0]))
+                    cursor.execute(
+                        "UPDATE patients SET remarks=? WHERE id=?",
+                        (new_remarks, patient[0])
+                    )
                     conn.commit()
                     conn.close()
                     st.rerun()
@@ -118,7 +138,12 @@ if patients:
             if st.session_state.get(f"editing_{patient[0]}", False):
                 with st.form(key=f"edit_form_{patient[0]}"):
                     new_name = st.text_input("Full Name", value=patient[1])
-                    new_dob = st.date_input("Date of Birth", min_value=date(1900,1,1), max_value=date.today(), value=date.fromisoformat(patient[2]))
+                    new_dob = st.date_input(
+                        "Date of Birth",
+                        min_value=date(1900, 1, 1),
+                        max_value=date.today(),
+                        value=date.fromisoformat(patient[2])
+                    )
                     new_email = st.text_input("Email", value=patient[3])
                     new_glucose = st.number_input("Glucose", min_value=0.0, value=float(patient[4]))
                     new_haemoglobin = st.number_input("Haemoglobin", min_value=0.0, value=float(patient[5]))
@@ -126,17 +151,20 @@ if patients:
                     save = st.form_submit_button("Save Changes")
 
                     if save:
-                        new_remarks = get_ai_prediction(new_glucose, new_haemoglobin, new_cholesterol)
-                        conn = sqlite3.connect("patients.db")
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE patients SET full_name=?, dob=?, email=?, glucose=?, haemoglobin=?, cholesterol=?, remarks=?
-                            WHERE id=?
-                        """, (new_name, str(new_dob), new_email, new_glucose, new_haemoglobin, new_cholesterol, new_remarks, patient[0]))
-                        conn.commit()
-                        conn.close()
-                        st.session_state[f"editing_{patient[0]}"] = False
-                        st.success("Patient updated successfully!")
-                        st.rerun()
+                        if "@" not in new_email or "." not in new_email.split("@")[-1]:
+                            st.error("Invalid email address!")
+                        else:
+                            new_remarks = get_ai_prediction(new_glucose, new_haemoglobin, new_cholesterol)
+                            conn = sqlite3.connect("patients.db")
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                UPDATE patients SET full_name=?, dob=?, email=?, glucose=?, haemoglobin=?, cholesterol=?, remarks=?
+                                WHERE id=?
+                            """, (new_name, str(new_dob), new_email, new_glucose, new_haemoglobin, new_cholesterol, new_remarks, patient[0]))
+                            conn.commit()
+                            conn.close()
+                            st.session_state[f"editing_{patient[0]}"] = False
+                            st.success("Patient updated successfully!")
+                            st.rerun()
 else:
     st.info("No patient records found. Add a patient above!")
